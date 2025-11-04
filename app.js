@@ -52,11 +52,6 @@ function findMessageElById(id) {
   return messagesEl.querySelector(`[data-doc-id="${id}"]`);
 }
 
-// SolChat Global – Appwrite-powered real-time global chat
-// Configuration
-const APPWRITE_ENDPOINT = 'https://nyc.cloud.appwrite.io/v1';
-const APPWRITE_PROJECT_ID = '690874e400173bad91d8';
-// ... existing code ...
 
 // Elements
 const authView = document.getElementById('authView');
