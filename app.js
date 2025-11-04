@@ -163,7 +163,7 @@ function setNameWithBadge(el, nameText, subject) {
       img.addEventListener('dragstart', (e) => e.preventDefault());
       img.addEventListener('click', (e) => e.preventDefault());
       // Tooltip interactions for founder badge
-      img.addEventListener('mouseenter', () => showBadgeTooltip(img, 'He is the founder'));
+      img.addEventListener('mouseenter', () => showBadgeTooltip(img, 'He is the Admin'));
       img.addEventListener('mouseleave', hideBadgeTooltip);
       el.appendChild(img);
     }
