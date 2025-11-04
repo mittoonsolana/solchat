@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>SolChat by Mitto</title>
+    <meta name="description" content="SolChat by Mitto – Futuristic real-time chat powered by Appwrite." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <!-- Appwrite SDK via CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/appwrite@latest"></script>
+    <!-- TradingView Chart Library -->
+    <script src="https://s3.tradingview.com/tv.js"></script>
+    <!-- Silence noisy TradingView Snowplow console message (non-functional warning) -->
+    <script>
+      (function() {
+        try {
+          const url = new URL(window.location.href);
+          if (url.searchParams.get('debug') === '1') return; // allow full logs via ?debug=1
+          const wrap = (orig) => function(...args) {
+            try {
+              const msg = String(args?.[0] || '').toLowerCase();
+              if (msg.includes('invalid environment undefined')) return;
+            } catch (_) {}
+            return orig.apply(this, args);
+          };
+          console.error = wrap(console.error);
+          console.warn = wrap(console.warn);
+          console.log = wrap(console.log);
+          console.info = wrap(console.info);
+          console.debug = wrap(console.debug);
+        } catch (_) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="app">
+      <!-- Header -->
+      <header class="header">
+        <div class="header__brand">
+          <div class="brand__glow"></div>
+          <h1 class="brand__title">SolChat <span class="brand__by">by Mitto</span></h1>
+        </div>
+        <div class="header__profile" id="profile">
+          <div class="header__mentions" id="mentions">
+            <button class="notify__button" id="mentionsButton" aria-haspopup="true" aria-expanded="false" title="Mentions">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2a6 6 0 00-6 6v3.586l-1.707 1.707A1 1 0 005 15h14a1 1 0 00.707-1.707L18 11.586V8a6 6 0 00-6-6z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M9 18a3 3 0 006 0" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              <span class="notify__badge" id="mentionsBadge" aria-label="New mentions" hidden>0</span>
+            </button>
+            <div class="notify__menu" id="mentionsMenu" role="menu" aria-label="Mentions"></div>
+          </div>
+          <button class="btn btn--primary" id="loginNavButton" style="display:none">Login</button>
+          <button class="profile__button" id="profileButton" aria-haspopup="true" aria-expanded="false">
+            <span id="profileName">Guest</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M7 10l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
+          <div class="profile__menu" id="profileMenu">
+            <div class="profile__email" id="profileEmail"></div>
+            <button class="btn btn--ghost" id="logoutButton">Logout</button>
+          </div>
+        </div>
+      </header>
+
+      <!-- Landing View -->
+      <main id="landingView" class="view view--landing">
+        <section class="landing landing--revamp">
+          <header class="landing__hero">
+            <div class="hero__content">
+              <h1 class="hero__title">Solana Live</h1>
+              <p class="hero__subtitle">Real-time price, interactive chart, and the latest news. Jump into the global chat and trade ideas with the community.</p>
+              <div class="hero__actions">
+                <button class="btn btn--primary" id="joinChatButton">Join Live Chat</button>
+              </div>
+            </div>
+            <aside class="hero__quote card card--gradient" aria-live="polite">
+              <div class="metric__label">SOL Quote</div>
+              <div class="tradingview-widget-container" id="tvQuoteContainer">
+                <div class="tradingview-widget-container__widget"></div>
+              </div>
+              <div id="solPrice" class="metric__value"></div>
+              <div id="solPriceChange" class="metric__delta"></div>
+            </aside>
+          </header>
+
+          <section class="landing__sections">
+            <div class="card card--chartWide card--gradient">
+              <div id="solChart" class="chart" aria-label="Solana price chart"></div>
+            </div>
+            <div class="card card--newsTall card--gradient">
+              <div class="tradingview-widget-container" id="tvNewsContainer">
+                <div class="tradingview-widget-container__widget" id="tvNewsWidget"></div>
+                <div class="tv-mask" aria-hidden="true"></div>
+              </div>
+              <div id="solNewsList" class="news__list"></div>
+            </div>
+          </section>
+        </section>
+      </main>
+
+      <!-- Auth View -->
+      <main id="authView" class="view view--auth hidden">
+        <section class="auth">
+          <button type="button" class="auth__back" id="authBackButton" aria-label="Back to landing" title="Back">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <h2 class="auth__title">Welcome to SolChat</h2>
+          <p class="auth__subtitle">Login or Signup to join the global chatroom</p>
+
+          <form id="authForm" class="auth__form" autocomplete="on">
+            <label class="field" id="nameField">
+              <span class="field__label">Name</span>
+              <input type="text" id="name" class="field__input" placeholder="Your name" />
+            </label>
+            <label class="field">
+              <span class="field__label">Email</span>
+              <input type="email" id="email" class="field__input" placeholder="you@example.com" required />
+            </label>
+            <label class="field">
+              <span class="field__label">Password</span>
+              <div class="field__input-wrap">
+                <input type="password" id="password" class="field__input" placeholder="••••••••" minlength="8" required />
+                <button type="button" class="password-toggle" id="passwordToggle" aria-label="Show password" title="Show password">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
+                  </svg>
+                </button>
+              </div>
+            </label>
+            <div class="auth__actions">
+              <button type="submit" class="btn btn--primary" id="authSubmit">Login</button>
+              <button type="button" class="btn btn--switch" id="switchMode">Switch to Signup</button>
+              <!-- Guest login removed per request -->
+            </div>
+            <div class="auth__help">
+              <button type="button" id="forgotButton" class="auth__link" title="Reset your password">Forgot password?</button>
+            </div>
+          </form>
+
+          <!-- Reset Password Form (shown after recovery link) -->
+          <form id="resetForm" class="auth__form hidden" autocomplete="off">
+            <h3 class="auth__title">Reset Password</h3>
+            <p class="auth__subtitle">Enter a new password for your account</p>
+            <label class="field">
+              <span class="field__label">New Password</span>
+              <div class="field__input-wrap">
+                <input type="password" id="newPassword" class="field__input" placeholder="••••••••" minlength="8" required />
+                <button type="button" class="password-toggle" id="newPasswordToggle" aria-label="Show password" title="Show password">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
+                  </svg>
+                </button>
+              </div>
+            </label>
+            <label class="field">
+              <span class="field__label">Confirm Password</span>
+              <div class="field__input-wrap">
+                <input type="password" id="confirmPassword" class="field__input" placeholder="••••••••" minlength="8" required />
+                <button type="button" class="password-toggle" id="confirmPasswordToggle" aria-label="Show password" title="Show password">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
+                  </svg>
+                </button>
+              </div>
+            </label>
+            <div class="auth__actions">
+              <button type="submit" class="btn btn--primary" id="resetSubmit">Update Password</button>
+              <button type="button" class="btn btn--ghost" id="resetCancel">Cancel</button>
+            </div>
+          </form>
+          
+        </section>
+      </main>
+
+      <!-- Chat View -->
+      <main id="chatView" class="view view--chat hidden">
+        <section class="chat chat--layout">
+          <div id="pinnedBar" class="pinned-bar" aria-live="polite" aria-hidden="true"></div>
+          <div class="chat__messages" id="messages" aria-live="polite" aria-busy="false"></div>
+          <aside class="users" id="usersPanel" aria-label="Online users">
+            <h3 id="usersTitle" class="users__title">Online</h3>
+            <div class="users__list" id="usersList"></div>
+          </aside>
+          <form id="messageForm" class="chat__input" autocomplete="off">
+            <div id="replyBar" class="reply hidden" aria-live="polite">
+              <span class="reply__label">Replying to:</span>
+              <span id="replyText" class="reply__text"></span>
+              <button type="button" id="replyCancel" class="btn btn--ghost reply__cancel" aria-label="Cancel reply">×</button>
+            </div>
+            <div id="guestTimer" class="guest-timer hidden" role="status" aria-live="polite" aria-atomic="true" title="Guest session time remaining">
+              <div class="guest-timer__icon" aria-hidden="true">⏳</div>
+              <div class="guest-timer__content">
+                <div class="guest-timer__label">Guest session</div>
+                <div class="guest-timer__countdown" id="guestCountdown">15:00</div>
+                <div class="guest-timer__bar" aria-hidden="true"><div class="guest-timer__bar-fill" id="guestTimerBar" style="width: 100%"></div></div>
+              </div>
+              <button type="button" class="btn btn--ghost guest-timer__upgrade" id="guestUpgradeButton" title="Log in to keep your session">Log in to stay</button>
+            </div>
+            <input type="text" id="messageInput" class="chat__textbox" placeholder="Type a message…" maxlength="400" />
+            <!-- @mention suggestions dropdown -->
+            <div id="mentionSuggest" class="mention-suggest" role="listbox" aria-label="Mention suggestions" aria-expanded="false"></div>
+            <button type="button" class="btn btn--danger" id="leaveChatButton" title="Leave chat room">Leave</button>
+            <button type="submit" class="btn btn--primary">Send</button>
+          </form>
+        </section>
+      </main>
+
+      <!-- Loading Overlay -->
+      <div id="loading" class="loading hidden">
+        <div class="loading__spinner"></div>
+        <div class="loading__text">Loading</div>
+      </div>
+
+      <!-- Toasts -->
+      <div id="toasts" class="toasts" aria-live="assertive"></div>
+      <!-- Mobile Chat Footer Mount -->
+      <div id="chatFooter" class="chat__footer" aria-label="Chat input footer" hidden></div>
+    </div>
+
+    <script src="app.js?v=2"></script>
+  </body>
+  </html>
