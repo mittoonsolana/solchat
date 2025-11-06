@@ -2132,6 +2132,7 @@ document.addEventListener('click', (e) => {
 window.addEventListener('resize', () => {
   if (profileMenu.classList.contains('open')) positionProfileMenu();
   if (mentionsMenu.classList.contains('open')) positionMentionsMenu();
+  try { updateUsersPanelForViewport(); updateInputMount(); } catch (_) {}
 });
 window.addEventListener('scroll', () => {
   if (profileMenu.classList.contains('open')) positionProfileMenu();
@@ -2210,6 +2211,7 @@ async function enterChat() {
     }
     // Ensure input is mounted appropriately after content loads
     updateInputMount();
+    updateUsersPanelForViewport();
     hasEnteredChat = true;
   } catch (err) {
     console.error('Enter chat error', err);
@@ -3697,6 +3699,15 @@ function updateInputMount() {
       const chatSection = document.querySelector('.chat.chat--layout');
       if (chatSection && !chatSection.contains(messageForm)) chatSection.appendChild(messageForm);
     }
+  } catch (_) {}
+}
+
+// Collapse users panel on mobile to free space; expand on larger viewports
+function updateUsersPanelForViewport() {
+  try {
+    if (!usersPanel) return;
+    const isMobile = isMobileViewport();
+    usersPanel.classList.toggle('users--collapsed', isMobile);
   } catch (_) {}
 }
 window.addEventListener('resize', () => { try { updateInputMount(); } catch (_) {} }, { passive: true });
