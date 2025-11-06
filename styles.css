@@ -10,6 +10,7 @@
   --danger: #ff4d4f;
   --shadow-1: 0 8px 24px rgba(0,0,0,0.35);
   --shadow-2: 0 12px 36px rgba(0,0,0,0.45);
+  --header-height: 72px;
 }
 
 * { box-sizing: border-box; }
@@ -144,7 +145,7 @@ body {
 .auth__actions { display: flex; gap: 10px; }
 
 /* Chat */
-.view--chat { min-height: calc(100vh - 72px); display: grid; overflow-x: hidden; }
+.view--chat { min-height: calc(100vh - var(--header-height)); display: grid; overflow-x: hidden; }
 .chat { display: grid; grid-template-rows: 1fr auto; gap: 16px; }
 .chat--layout { grid-template-columns: 1fr 280px; }
 .chat__messages {
@@ -392,7 +393,7 @@ body {
 .msg__content .mention { color: var(--neon-cyan); font-weight: 600; }
 
 /* Chat layout: constrain height to viewport; allow fixed footer to paint */
-.view--chat { height: calc(100vh - 72px); overflow-x: hidden; overflow-y: visible; }
+.view--chat { height: calc(100vh - var(--header-height)); overflow-x: hidden; overflow-y: visible; }
 .chat--layout { display: grid; grid-template-columns: 1fr 280px; grid-template-rows: auto 1fr; height: 100%; gap: 0 12px; }
 .chat__messages { overflow-y: auto; overflow-x: hidden; scroll-behavior: smooth; overscroll-behavior: contain; overscroll-behavior-x: none; }
 .users { overflow-y: auto; }
@@ -404,7 +405,7 @@ body {
   padding: 12px 16px; border-bottom: 1px solid var(--glass-border);
   background: rgba(8,8,8,0.75);
   backdrop-filter: saturate(140%) blur(6px);
-  position: sticky; top: 0; z-index: 20;
+  position: sticky; top: var(--header-height); z-index: 20;
   transition: background 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 .chat__title { margin: 0; font-size: 16px; font-weight: 700; }
@@ -446,6 +447,12 @@ body {
 /* Reserve space so messages don’t sit behind the fixed input */
 .chat__messages { padding-bottom: 140px; }
 .chat__messages { padding-bottom: calc(140px + env(safe-area-inset-bottom)); }
+
+/* On mobile, reserve a bit more space for the input + reply bar */
+@media (max-width: 640px) {
+  .chat__messages { padding-bottom: 180px; }
+  .chat__messages { padding-bottom: calc(180px + env(safe-area-inset-bottom)); }
+}
 
 /* @mention suggestions dropdown */
 .mention-suggest {
