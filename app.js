@@ -91,6 +91,8 @@ const mentionsBadge = document.getElementById('mentionsBadge');
 const mentionsMenu = document.getElementById('mentionsMenu');
 const mentionSuggestEl = document.getElementById('mentionSuggest');
 
+// Light mode removed: default to dark theme
+
 const authForm = document.getElementById('authForm');
 const resetForm = document.getElementById('resetForm');
 const forgotButton = document.getElementById('forgotButton');
@@ -1005,6 +1007,8 @@ const messageById = new Map();
 let pinnedMessageIds = new Set();
 // Total registered users from Auth. Fallback to presence count when null.
 let totalUsersCount = null;
+// Track last rendered day to insert separators
+let lastRenderedDayKey = null;
 
 function ensurePinnedBar() {
   const messagesContainer = document.getElementById('messages');
@@ -1029,6 +1033,14 @@ function ensurePinnedBar() {
     messagesContainer.parentNode.insertBefore(bar, messagesContainer);
   }
   return bar;
+}
+
+// Simple day separator element
+function createDaySeparator(label) {
+  const sep = document.createElement('div');
+  sep.className = 'day-separator';
+  sep.textContent = label;
+  return sep;
 }
 
 function renderPinnedItem(doc) {
@@ -1346,6 +1358,35 @@ function renderMessage(doc) {
   const isMe = !isEvent && !!(doc.userId && currentUser?.$id && doc.userId === currentUser.$id);
   if (docId) messageById.set(docId, doc);
 
+  // Compute message timestamp and day key
+  const tsDate = new Date(doc.timestamp || doc.$createdAt || Date.now());
+  const dayKey = tsDate.toDateString();
+  // Insert a separator when the day changes
+  try {
+    if (!lastRenderedDayKey || lastRenderedDayKey !== dayKey) {
+      const label = tsDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+      messagesEl.appendChild(createDaySeparator(label));
+      lastRenderedDayKey = dayKey;
+    }
+  } catch (_) {}
+
+  // Group with previous message when same user within 2 minutes
+  let shouldGroup = false;
+  if (!isEvent) {
+    const prev = Array.from(messagesEl.querySelectorAll('.msg')).pop();
+    if (prev) {
+      const prevId = prev.getAttribute('data-doc-id');
+      const prevDoc = prevId ? messageById.get(prevId) : null;
+      const prevIsEvent = prev?.classList?.contains('msg--event');
+      if (prevDoc && !prevIsEvent) {
+        const prevTs = new Date(prevDoc.timestamp || prevDoc.$createdAt || Date.now()).getTime();
+        const diff = Math.abs(tsDate.getTime() - prevTs);
+        const sameUser = !!(prevDoc.userId && doc.userId && prevDoc.userId === doc.userId);
+        if (sameUser && diff <= 2 * 60 * 1000) shouldGroup = true;
+      }
+    }
+  }
+
   const updateEl = (el) => {
     const user = el.querySelector('.msg__user');
     const time = el.querySelector('.msg__time');
@@ -1483,7 +1524,7 @@ function renderMessage(doc) {
     bubble.classList.add('msg__bubble--me');
   }
   let avatar;
-  if (!isEvent && !isMe) {
+  if (!isEvent && !isMe && !shouldGroup) {
     avatar = document.createElement('div');
     avatar.className = 'msg__avatar';
     setAvatar(avatar, doc.username || 'Unknown', doc.userId || doc.$id);
@@ -1496,7 +1537,7 @@ function renderMessage(doc) {
     bubble.appendChild(quote);
   }
 
-  if (!isEvent) {
+  if (!isEvent && !shouldGroup) {
     const meta = document.createElement('div');
     meta.className = 'msg__meta';
     const user = document.createElement('div');
@@ -1721,6 +1762,9 @@ function renderMessage(doc) {
     if (avatar) wrap.appendChild(avatar);
   }
   wrap.appendChild(bubble);
+  if (shouldGroup) {
+    wrap.classList.add('msg--grouped');
+  }
   // Now that bubble and its children exist, apply final text/visibility updates
   updateEl(wrap);
   messagesEl.appendChild(wrap);
@@ -2254,6 +2298,7 @@ async function loadMessages() {
       });
     }
     messagesEl.innerHTML = '';
+    lastRenderedDayKey = null;
     res.documents.forEach(renderMessage);
     try { updatePinnedBar(); } catch (_) {}
     scrollToBottom();
