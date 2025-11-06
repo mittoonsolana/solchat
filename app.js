@@ -52,6 +52,28 @@ function findMessageElById(id) {
   return messagesEl.querySelector(`[data-doc-id="${id}"]`);
 }
 
+function renderTopbarPresenceBadges(list) {
+  try {
+    if (!topbarPresenceBadgesEl) return;
+    topbarPresenceBadgesEl.innerHTML = '';
+    const admins = (Array.isArray(list) ? list : []).filter((d) => isAdmin(d));
+    if (!admins.length) return;
+    const max = Math.min(admins.length, 3);
+    for (let i = 0; i < max; i++) {
+      const d = admins[i];
+      const badge = document.createElement('span');
+      badge.className = 'presence-badge presence-badge--admin';
+      const username = d.username || ADMIN_DISPLAY_NAME;
+      badge.title = username;
+      try {
+        badge.textContent = (initialsFromName(username) || 'A').slice(0, 2).toUpperCase();
+      } catch (_) {
+        badge.textContent = 'A';
+      }
+      topbarPresenceBadgesEl.appendChild(badge);
+    }
+  } catch (_) {}
+}
 
 // Elements
 const authView = document.getElementById('authView');
@@ -89,6 +111,12 @@ const solPriceChangeEl = document.getElementById('solPriceChange');
 const solNewsListEl = document.getElementById('solNewsList');
 const solChartEl = document.getElementById('solChart');
 const messagesEl = document.getElementById('messages');
+const usersToggle = document.getElementById('usersToggle');
+const usersPanel = document.getElementById('usersPanel');
+const scrollBottomButton = document.getElementById('scrollBottomButton');
+const chatTitleEl = document.getElementById('chatTitle');
+const jumpToPinnedButton = document.getElementById('jumpToPinnedButton');
+const topbarPresenceBadgesEl = document.getElementById('topbarPresenceBadges');
 const messageForm = document.getElementById('messageForm');
 const messageInput = document.getElementById('messageInput');
 const sendButton = document.querySelector('#messageForm button[type="submit"]');
@@ -163,7 +191,7 @@ function setNameWithBadge(el, nameText, subject) {
       img.addEventListener('dragstart', (e) => e.preventDefault());
       img.addEventListener('click', (e) => e.preventDefault());
       // Tooltip interactions for founder badge
-      img.addEventListener('mouseenter', () => showBadgeTooltip(img, 'He is the Admin'));
+      img.addEventListener('mouseenter', () => showBadgeTooltip(img, 'He is the founder'));
       img.addEventListener('mouseleave', hideBadgeTooltip);
       el.appendChild(img);
     }
@@ -1023,6 +1051,7 @@ function updatePinnedBar() {
   bar.innerHTML = '';
   if (pinnedMessageIds.size === 0) {
     bar.classList.remove('visible');
+    try { updateJumpToPinnedAvailability(); } catch (_) {}
     return;
   }
   // Show only the most recently pinned message as a top banner
@@ -1216,6 +1245,17 @@ function updatePinnedBar() {
 
   bar.appendChild(card);
   bar.classList.add('visible');
+  try { updateJumpToPinnedAvailability(); } catch (_) {}
+}
+
+function updateJumpToPinnedAvailability() {
+  try {
+    if (!jumpToPinnedButton) return;
+    const hasPinned = !!document.querySelector('#pinnedBar .pinned-card');
+    jumpToPinnedButton.classList.toggle('hidden', !hasPinned);
+    jumpToPinnedButton.disabled = !hasPinned;
+    jumpToPinnedButton.setAttribute('aria-disabled', String(!hasPinned));
+  } catch (_) {}
 }
 
 function applyPinnedStateUIForId(id, isPinned) {
@@ -1688,6 +1728,8 @@ function renderMessage(doc) {
   registerMentionIfTarget(doc);
   // Register reply notifications (when someone replies to your message)
   registerReplyIfTarget(doc);
+  // Update scroll-to-bottom FAB visibility after each message render
+  try { updateScrollBottomVisibility(); } catch (_) {}
   return wrap;
 }
 
@@ -1717,7 +1759,67 @@ replyCancelBtn?.addEventListener('click', () => {
 
 function scrollToBottom() {
   messagesEl.scrollTop = messagesEl.scrollHeight;
+  updateScrollBottomVisibility();
 }
+
+// Chat UI helpers: users toggle and scroll-to-bottom button
+function toggleUsersPanel() {
+  try {
+    if (!usersPanel) return;
+    usersPanel.classList.toggle('users--collapsed');
+  } catch (_) {}
+}
+
+function isMessagesAtBottom() {
+  try {
+    const threshold = 20;
+    return messagesEl.scrollTop >= (messagesEl.scrollHeight - messagesEl.clientHeight - threshold);
+  } catch (_) { return true; }
+}
+
+function updateScrollBottomVisibility() {
+  try {
+    if (!scrollBottomButton || !messagesEl) return;
+    const show = !isMessagesAtBottom();
+    scrollBottomButton.classList.toggle('show', show);
+  } catch (_) {}
+}
+
+scrollBottomButton?.addEventListener('click', () => {
+  scrollToBottom();
+});
+
+messagesEl?.addEventListener('scroll', () => {
+  updateScrollBottomVisibility();
+}, { passive: true });
+
+// Jump to pinned message/card from topbar
+jumpToPinnedButton?.addEventListener('click', () => {
+  try {
+    const bar = document.getElementById('pinnedBar');
+    const card = bar?.querySelector('.pinned-card');
+    if (card) {
+      card.classList.add('pinned-card--expanded');
+      const previewEl = card.querySelector('.pinned__preview');
+      const fullEl = card.querySelector('.pinned__full');
+      if (previewEl && fullEl) {
+        previewEl.style.display = 'none';
+        fullEl.style.display = '';
+      }
+      try {
+        bar.classList.add('pulse');
+        setTimeout(() => { try { bar.classList.remove('pulse'); } catch (_) {} }, 1200);
+      } catch (_) {}
+      bar.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      toast('No pinned message', 'info');
+    }
+  } catch (_) {}
+});
+
+usersToggle?.addEventListener('click', () => {
+  toggleUsersPanel();
+});
 
 // Auth Logic
 let isSignup = false;
@@ -2570,6 +2672,8 @@ async function refreshOnlineUsers() {
     try {
       // Show online count out of total presence
       if (usersTitleEl) usersTitleEl.textContent = `Online (${ordered.length}/${presenceTotal})`;
+      if (chatTitleEl) chatTitleEl.textContent = `Global Chat — ${ordered.length}/${presenceTotal} online`;
+      try { renderTopbarPresenceBadges(ordered); } catch (_) {}
     } catch (_) {}
     // After presence docs refresh, update all seen counters live
     try { refreshSeenCounters(); } catch (_) {}
@@ -2587,8 +2691,11 @@ async function refreshOnlineUsers() {
         };
         usersListEl.appendChild(renderUserItem(selfDoc));
         if (usersTitleEl) usersTitleEl.textContent = 'Online (1/1)';
+        if (chatTitleEl) chatTitleEl.textContent = 'Global Chat — 1/1 online';
       } else {
         if (usersTitleEl) usersTitleEl.textContent = 'Online (0/0)';
+        if (chatTitleEl) chatTitleEl.textContent = 'Global Chat — 0/0 online';
+        try { renderTopbarPresenceBadges([]); } catch (_) {}
       }
     } catch (_) {}
   }
